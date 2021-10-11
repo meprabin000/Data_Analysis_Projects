@@ -1,4 +1,4 @@
-# Data_Analysis_Projects
+# Data_Analysis_Projects (All of the projects in this folder are written in R)
 
 1. Intro to Probability and Statistics: In this project, I have used Behavioral Risk Factor Surveillance System (BRFSS) to answer 3 research questions.
 
