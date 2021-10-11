@@ -1,0 +1,260 @@
+---
+title: "Exploring the BRFSS data"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+```
+
+### Load data
+
+```{r load-data}
+load("brfss2013.RData")
+```
+
+
+
+* * *
+
+## Part 1: Data
+
+Behavioral Risk Factor Surveillance System (BRFSS) is a collaborative project between all of the states in the United States (US), participating US territories, and Centers for Disease Control and Prevention (CDC). It collects uniform and state-specific data on preventive health practices and risk behaviors through landline telephone and cellular telephone based surveys from a randomly selected US residing adult, aged 18 years or older, in a household.
+
+This 2013 dataset includes information related to tobacco use, HIV/AIDS knowledge and prevention, exercise, immunization, health status, healthy dayss — health-related quality of life, health care access, inadequate sleep, hypertension awareness, cholesterol awareness, chronic health conditions, alcohol consumption, fruits and vegetables consumption, arthritis burden, and seatbelt use. The full dataset contains 491775 observations of 330 variables.
+
+This dataset can be used to make generic inferences about the population because it is an observational data where each surveyed adult is randomly selected. A randomly selected sample is a good representative of the population that allows generic inferences be made about the population. On the other hand, causal inferences cannot be made since this is not a experimental data, and there is no random assignment to control and treatment groups.
+* * *
+
+## Part 2: Research questions
+
+**Research quesion 1:**
+As a first research question, we might be interested in understanding whether a person who drinks sugar drinks regularly have been diagnosed a diabetes by a health professional- focusing on whether people who drink sugar drinks frequently are more likely to have diabetes. We familiarize ourselves with the variables ssbsugar, ssbfrut2, and diabete3 in the codebook, and explore the data.
+
+
+**Research quesion 2:**
+As a second research question, we might be interested to understand how an employment status of an adult is related to smoking habits- focusing on whether unemployed adults are more likely to smoke frequently than those who have a job. We familiarize ourselves with the variables employ1, and smokday2 in the codebook, and explore the data.
+
+**Research quesion 3:**
+As a third research question, we might want to understand how sleeping pattern of a person is related to high blood pressure and high cholesterol level- focusing on a question of whether a person who sleeps less is more likely to have high blood pressure, or high cholesterol level, or both. We familiarize ourselves with the variables sleptim1, bphigh4, and toldhi2 in the codebook, and explore the data.
+
+* * *
+
+## Part 3: Exploratory data analysis
+
+**Research quesion 1:**
+First, we would like to select  the interested variables (columns) from our dataset to explore our first research question. Since we are interested in understanding whether diabetes has any relationship with how frequently a person has sugar drinks, we will explore three variables - ssbsugar (frequency of drinking regular soda or pop), ssbfrut2 (frequency of drinking sugar-sweetened drinks), and diabete3 (have been diagnosed diabetes by health professional).
+```{r count_}
+# summarizing interested variables
+brfss2013 %>%
+  select(ssbsugar, ssbfrut2, diabete3) %>%
+  group_by(ssbsugar) %>%
+  summarize(count = n())
+
+# added an extra column so that the frequency of having sugar drinks is in same time frame ( times per month )
+brfss2013 <- brfss2013 %>%
+  mutate(ssbsugar_timespermonth = ifelse( ssbsugar %/% 100 == 1, as.integer((ssbsugar %% 100) * 30),
+                                          ifelse( ssbsugar %/% 100 == 2, as.integer((ssbsugar %% 100) * 30 / 7), 
+                                                  ifelse( ssbsugar %/% 100 == 3, as.integer((ssbsugar %% 100)), NaN ))))
+# check whether the column exists
+sum(grepl("ssbsugar_timespermonth", names(brfss2013)))
+
+# Applying similar changes in ssbfrut2 column
+brfss2013 <- brfss2013 %>%
+  mutate(ssbfrut2_timespermonth = ifelse( ssbfrut2 %/% 100 == 1, as.integer((ssbfrut2 %% 100) * 30),
+                                          ifelse( ssbfrut2 %/% 100 == 2, as.integer((ssbfrut2 %% 100) * 30 / 7), 
+                                                  ifelse( ssbfrut2 %/% 100 == 3, as.integer((ssbfrut2 %% 100)), NaN ))))
+
+# check whether the column exists
+sum(grepl("ssbfrut2_timespermonth", names(brfss2013)))
+
+```
+
+Now, all values in the ssbsugar_timespermonth and ssbfrut2_timespermonth are on the same timeframe, which makes it easy for statistical analysis.
+```{r}
+# summarizing the data
+brfss2013 %>%
+  filter(!is.na(ssbsugar_timespermonth)) %>%
+  select(ssbsugar_timespermonth, diabete3) %>%
+  summarize(n_ssbsugar = n(),
+            mean_ssbsugar = mean(ssbsugar_timespermonth),
+            median_ssbsugar = median(ssbsugar_timespermonth),
+            std_ssbsugar = sd(ssbsugar_timespermonth))
+
+# summarizing the data
+brfss2013 %>%
+  filter(!is.na(ssbfrut2_timespermonth)) %>%
+  select( ssbfrut2_timespermonth, diabete3) %>%
+  summarize(n_ssbfrut2 = n(),
+            mean_ssbfrut2 = mean(ssbfrut2_timespermonth),
+            median_ssbfrut2 = median(ssbfrut2_timespermonth),
+            std_ssbfrut2 = sd(ssbfrut2_timespermonth))
+
+# people may drink either sugar-sweetened drinks (ssbfrut2) or regular soda (ssbsugar) or both. so the accurate picture of their sugar drink consumption can be visualized by summing them.
+brfss2013 <- brfss2013 %>%
+  mutate( total_sugar_drinks_timespermonth = replace(brfss2013$ssbfrut2_timespermonth,is.na(brfss2013$ssbfrut2_timespermonth),0) +replace(brfss2013$ssbsugar_timespermonth, is.na(brfss2013$ssbfrut2_timespermonth), 0))
+
+brfss2013 %>%
+  filter(!is.na(total_sugar_drinks_timespermonth) & total_sugar_drinks_timespermonth != 0) %>%
+  select( total_sugar_drinks_timespermonth) %>%
+  summarize(n_total_sugar_drinks_timespermonth = n(),
+            mean_total_sugar_drinks_timespermonth = mean(total_sugar_drinks_timespermonth),
+            median_total_sugar_drinks_timespermonth = median(total_sugar_drinks_timespermonth),
+            std_total_sugar_drinks_timespermonth = sd(total_sugar_drinks_timespermonth))
+
+
+```
+For ssbsugar_timespermonth and ssbfrut2_timespermonth, the median is less than the mean, and the data appears to be left-skewed.. The standard deviation is quite reasonable, around 33 drinks per month in both cases, because it shows that individuals drink 1 drink per day more or less than the other individual on average. 
+
+Combining both drinks (total_sugar_drinks_timespermonth), on average people drink around 40 drinks per month with standard deviation of 52. Now, let us visualize the data using histogram.
+
+```{r}
+brfss2013 %>%
+  filter(!is.na(total_sugar_drinks_timespermonth) & total_sugar_drinks_timespermonth != 0) %>%
+  ggplot(aes(x = total_sugar_drinks_timespermonth)) +
+  geom_histogram(binwidth = 10)
+
+brfss2013 %>%
+  filter(!is.na(total_sugar_drinks_timespermonth) & total_sugar_drinks_timespermonth != 0) %>%
+  ggplot(aes(x = total_sugar_drinks_timespermonth)) +
+  geom_histogram(binwidth = 10) +
+  facet_grid(diabete3 ~ .)
+```
+Based on this histogram, we see that people who regularly drink sugar drinks are not likely to be diagnosed of having diabetes. This conclusion is based solely on observing this brfss2013 and the drinking (sugar drinks) pattern of individuals in 2013. Those who were diagnosed with diabete may used to drink sugar drinks frequently and then may have reduced their sfrequency after diagnosis. Their historical drinking data is not provided by the brfss2013 data. Hence, a more convincing conclusion would be 'people who are not diagnosed with diabetes are more likely to take sugar drinks than their counterparts ' although this is not the research question we are trying to answer.
+
+**Research quesion 2:**
+For our second research question, we will focus on employment status of a person and whether they smoke or not.
+```{r}
+brfss2013 %>%
+  filter(!is.na(employ1)) %>%
+  ggplot(aes(x = employ1)) +
+  geom_bar()
+
+
+```
+
+For our analysis, we will only focus on two groups of people: Employed and Unemployed. To achieve that, we will further classify the labels into these groups: Employed(Employed for wages, Self-employed), and Unemployed(Out of work for 1 year or more, Out of work for less than 1 year, a homemaker, a student, retired)
+
+```{r}
+# Creating a new column (employ_status), that has only 2 values: Employed and Unemployed
+brfss2013 <- brfss2013 %>%
+    mutate(employ_status = ifelse((employ1 == "Employed for wages" | employ1 == "Self-employed"), "Employed", ifelse(is.na(employ1), NA, "Unemployed")))
+```
+
+```{r}
+# values in smokday2 column
+unique(brfss2013$smokday2)
+```
+We are only interested in whether employed person are more likely to smoke or not. Therefore, we will group two values in smokday2 ('Some days' and 'Every day') into 'Smoke' and 'Not at all' into 'Not smoke'. We will create a new variable called 'smoke_status for this purpose.
+```{r}
+brfss2013 <- brfss2013 %>%
+  mutate( smoke_status = ifelse(is.na(smokday2), NA, ifelse(smokday2 == "Not at all", "Not smoke", "Smoke")))
+```
+Now, we are ready to analyze our research question. We will create a new variable called smoke_employ that has 4 values: smoke_employed, smoke_notEmployed, notSmoke_employed, notSmoke_notEmployed. If a person smokes and is employed, we give him 'smoke_employed' and if a person doesn't smoke and is not employed, we give him 'notSmoke_notEmployed'. Rest of the values follow this rule.
+```{r}
+brfss2013 <- brfss2013 %>%
+  mutate( smoke_employ = ifelse( smoke_status == "Smoke", ifelse(is.na(employ_status), NA, ifelse(employ_status == "Employed", "smoke_employ", "Smoke_notEmployed")), ifelse(is.na(employ_status), NA, ifelse(employ_status == "Employed", "notSmoke_employed", "notSmoke_notEmployed"))))
+```
+Now, let us summarize the results (counts) and then, visualize using bar graph.
+```{r}
+brfss2013 %>%
+  filter(!is.na(smoke_employ)) %>%
+  group_by(smoke_employ) %>%
+  summarize( n_count = n() )
+
+# creating a bar plot
+brfss2013 %>%
+  filter(!is.na(smoke_employ)) %>%
+  group_by(smoke_employ) %>%
+  ggplot(aes(x = smoke_employ)) +
+  geom_bar()
+  
+```
+From the bar plot, we can see that significant proportion of population do not smoke. Among those who smoke, the percentage of people who are employed is about 50% and rest are 50%.
+
+Based on this observation, we can conclude that the employment_status of a person doesn't provide sufficient information to determine the likelihood of their smoking status.
+
+**Research quesion 3:**
+For this research question, we are interested in three variables: sleptim1(hours slept in 24 hour period), bphigh4, and toldhi2. We will approach to answer this research question in three simple steps:
+1. Grouping: group the sleptim1 values into 2 categories: enough sleep (6<) and notEnoughSleep(>6). group the values of bphigh4 to into high and low. group the values of toldhi4 into Choles and notCholes.
+2. Aggregation: combine the mutated bphigh4 and mutated toldhi4 values into 1 column so that they have 4 possible combinations( high_Choles, high_notCholes, low_Choles, low_notCholes).
+4. Analysis: analyze the newly created column results, and draw the conclusion.
+
+```{r}
+# Grouping Stage
+unique(brfss2013$sleptim1)
+
+brfss2013 <- brfss2013 %>%
+  mutate( sleep_status = ifelse( is.na(sleptim1), NA, ifelse(sleptim1 < 6, "notEnoughSleep","enoughSleep")))
+
+unique(brfss2013$bphigh4)
+
+brfss2013 <- brfss2013 %>%
+  mutate( bp_status = ifelse(is.na(bphigh4), NA, ifelse(bphigh4 == "Yes", "high", "notHigh")))
+
+unique(brfss2013$toldhi2)
+
+brfss2013 <- brfss2013 %>%
+  mutate( choles_status = ifelse(is.na(toldhi2), NA, ifelse(toldhi2 == "Yes", "Choles", "notCholes")))
+
+
+```
+Next step is aggregation. We combine the values of bp_status (2 unique values) and choles_status (2 unique values) and create a new column with the values that are combinations of bp_status and choles_status separated by '_'. For example, if a person has a high blood pressure and have been diagonosed with high cholesterol, then we give 'high_Choles'. 
+```{r}
+brfss2013 <- brfss2013 %>%
+  mutate( bp_choles = ifelse( bp_status == "high",
+                              ifelse(is.na(choles_status), NA,
+                                     ifelse(choles_status == "Choles", 
+                                            ifelse(is.na(sleep_status),NA,
+                                                   ifelse(sleep_status == "enoughSleep","high_Choles_enoughSleep", 
+                                                          "high_Choles_notEnoughSleep"
+                                                          )
+                                                   ), 
+                                            ifelse(is.na(sleep_status),NA,
+                                                   ifelse(sleep_status == "enoughSleep", "high_notCholes_enoughSleep", 
+                                                          "high_notCholes_notEnoughSleep"
+                                                          )
+                                                   )
+                                            )
+                                     ),
+                              ifelse(is.na(choles_status), NA,
+                                     ifelse(choles_status == "Choles", 
+                                            ifelse(is.na(sleep_status),NA,
+                                                   ifelse(sleep_status == "enoughSleep","notHigh_Choles_enoughSleep", 
+                                                          "notHigh_Choles_notEnoughSleep"
+                                                          )
+                                                   ), 
+                                            ifelse(is.na(sleep_status),NA,
+                                                   ifelse(sleep_status == "enoughSleep", "notHigh_notCholes_enoughSleep", 
+                                                          "notHigh_notCholes_notEnoughSleep"
+                                                          )
+                                                   )
+                                            )
+                                     )
+                              )
+          )
+```
+Now, let us summarize the results and visualize the distribution using bar plot.
+```{r}
+brfss2013 %>%
+  filter(!is.na(bp_choles)) %>%
+  group_by(bp_choles) %>%
+  summarize( n_count = n() )
+
+# creating a bar plot
+brfss2013 %>%
+  filter(!is.na(bp_choles)) %>%
+  group_by(bp_choles) %>%
+  ggplot(aes(y = bp_choles)) +
+  geom_bar()
+```
+From the data, we can observe that people who are not diagnosed of high blood pressure and high cholesterol level are more likely to get sleep of at least 6 hours. However, we do not see enough evidence to support if having been diagonosed with high blood pressure or high cholesterol level makes people not have enough sleep (less than 6 hours). Therefore, we do not see any dependancy between sleep time, and high blood pressure and high cholesterol level.
